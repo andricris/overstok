@@ -239,7 +239,8 @@
                                     to: dest.branch,
                                     toIsland: dest.island,
                                     qty: validTransfer,
-                                    transferType: transferType
+                                    transferType: transferType,
+                                    sourceStockBefore: source.qty // Capture stock before update
                                 });
 
                                 source.qty -= validTransfer;
@@ -259,11 +260,12 @@
 
             // Download CSV
             const downloadCSV = () => {
-                const headers = ["Kode Produk", "Deskripsi", "Tipe Transfer", "Dari Cabang", "Rayon Asal", "Ke Cabang", "Rayon Tujuan", "Kelipatan", "Qty Transfer"];
+                const headers = ["Kode Produk", "Deskripsi", "Tipe Transfer", "Dari Cabang", "Rayon Asal", "Overstok", "Ke Cabang", "Rayon Tujuan", "Kelipatan", "Qty Transfer"];
                 const rows = suggestions.map(s => [
                     s.productCode, `"${s.productDesc || ''}"`,
                     s.transferType === 'LOCAL' ? 'SATU RAYON' : 'LUAR RAYON',
                     s.from, s.fromIsland,
+                    s.sourceStockBefore, // Add stock info to CSV
                     s.to, s.toIsland,
                     s.multiple, s.qty
                 ]);
@@ -406,6 +408,7 @@
                                                     <td className="px-4 py-3 bg-green-50/30 border-l">
                                                         <div className="font-medium text-green-800">{item.from}</div>
                                                         <div className="text-[10px] text-gray-500 flex items-center gap-1"><IconMapPin /> {item.fromIsland}</div>
+                                                        <div className="text-[10px] text-green-600 font-semibold mt-1">Overstok: {item.sourceStockBefore}</div>
                                                     </td>
                                                     <td className="px-2 py-3 text-center text-gray-400"><IconArrowRight /></td>
                                                     <td className="px-4 py-3 bg-red-50/30 border-l">
