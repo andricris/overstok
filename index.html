@@ -1,0 +1,547 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { Upload, FileSpreadsheet, ArrowRight, Settings, CheckCircle, AlertCircle, Download, Database, BarChart3, Search, RefreshCw, Info, Package, Box } from 'lucide-react';
+
+// --- Helper Functions ---
+
+const getColLetter = (colIndex) => {
+  let temp, letter = '';
+  while (colIndex >= 0) {
+    temp = (colIndex) % 26;
+    letter = String.fromCharCode(temp + 65) + letter;
+    colIndex = (colIndex - temp - 1) / 26;
+  }
+  return letter;
+};
+
+const getColIndex = (letter) => {
+  let column = 0;
+  const length = letter.length;
+  for (let i = 0; i < length; i++) {
+    column += (letter.charCodeAt(i) - 64) * Math.pow(26, length - i - 1);
+  }
+  return column - 1;
+};
+
+// Fungsi parsing angka: Mencegah koma/desimal. Dibulatkan ke bawah (Floor) agar aman.
+const parseSmartNumber = (val) => {
+  if (typeof val === 'number') return Math.floor(val);
+  if (!val) return 0;
+  
+  const strVal = String(val).trim();
+  if (strVal === '-' || strVal === '') return 0;
+
+  let result = 0;
+  if (strVal.includes(',') && !strVal.includes('.')) {
+    result = parseFloat(strVal.replace(',', '.'));
+  } else {
+    result = parseFloat(strVal);
+  }
+
+  return Math.floor(result) || 0;
+};
+
+const App = () => {
+  // --- State ---
+  const [isScriptLoaded, setIsScriptLoaded] = useState(false);
+  const [scriptError, setScriptError] = useState(false);
+  const [step, setStep] = useState(1);
+  const [rawFile, setRawFile] = useState(null);
+  const [workbook, setWorkbook] = useState(null);
+  const [sheetName, setSheetName] = useState('');
+  const [previewData, setPreviewData] = useState([]);
+  
+  // Configuration State
+  const [headerRowIndex, setHeaderRowIndex] = useState(4);
+  const [colMapping, setColMapping] = useState({
+    branch: 'A',
+    productCode: 'E',
+    productDesc: 'F',
+    planDrop: 'AY',
+    overStock: 'AZ',
+    multiple: 'AP' // Kolom baru untuk Kelipatan Kirim
+  });
+
+  // Results
+  const [suggestions, setSuggestions] = useState([]);
+  const [stats, setStats] = useState({ totalMoves: 0, totalQty: 0, uniqueProducts: 0 });
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // --- Effects ---
+  useEffect(() => {
+    if (window.XLSX) {
+      setIsScriptLoaded(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+    script.async = true;
+    script.onload = () => setIsScriptLoaded(true);
+    script.onerror = () => setScriptError(true);
+    document.body.appendChild(script);
+  }, []);
+
+  // --- Handlers ---
+
+  const handleFileUpload = (e) => {
+    if (!window.XLSX) {
+      alert("Library Excel belum siap. Mohon tunggu sebentar.");
+      return;
+    }
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setRawFile(file);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target.result;
+        const wb = window.XLSX.read(bstr, { type: 'binary' });
+        setWorkbook(wb);
+        if (wb.SheetNames.length === 0) { alert("File Excel kosong."); return; }
+        const firstSheetName = wb.SheetNames[0];
+        setSheetName(firstSheetName);
+        const ws = wb.Sheets[firstSheetName];
+        const data = window.XLSX.utils.sheet_to_json(ws, { header: 1, range: 0, defval: "" });
+        setPreviewData(data.slice(0, 10));
+        setStep(2);
+      } catch (err) {
+        console.error(err);
+        alert("Gagal membaca file.");
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleAnalyze = () => {
+    if (!workbook || !window.XLSX) return;
+    
+    try {
+      const ws = workbook.Sheets[sheetName];
+      const rawData = window.XLSX.utils.sheet_to_json(ws, { header: 1, range: headerRowIndex + 1, defval: 0 });
+      
+      const idx = {
+        branch: getColIndex(colMapping.branch.toUpperCase()),
+        code: getColIndex(colMapping.productCode.toUpperCase()),
+        desc: getColIndex(colMapping.productDesc.toUpperCase()),
+        need: getColIndex(colMapping.planDrop.toUpperCase()),
+        over: getColIndex(colMapping.overStock.toUpperCase()),
+        multiple: getColIndex(colMapping.multiple.toUpperCase()),
+      };
+
+      const productGroups = {};
+
+      rawData.forEach(row => {
+        if (!row || row.length <= idx.code) return;
+        const pCode = row[idx.code];
+        if (!pCode) return;
+
+        // Ambil Kelipatan Kirim (default 1 jika kosong/error)
+        let multipleVal = parseSmartNumber(row[idx.multiple]);
+        if (multipleVal <= 0) multipleVal = 1;
+
+        if (!productGroups[pCode]) {
+          productGroups[pCode] = {
+            desc: row[idx.desc] || "Tanpa Nama",
+            multiple: multipleVal, // Simpan kelipatan per produk
+            sources: [],
+            destinations: []
+          };
+        }
+
+        const branch = row[idx.branch] || "Unknown";
+        const overQty = parseSmartNumber(row[idx.over]);
+        const needQty = parseSmartNumber(row[idx.need]);
+
+        if (overQty > 0) {
+          productGroups[pCode].sources.push({ 
+            branch, 
+            qty: overQty,
+            originalQty: overQty 
+          });
+        }
+        if (needQty > 0) {
+          productGroups[pCode].destinations.push({ 
+            branch, 
+            qty: needQty,
+            originalQty: needQty 
+          });
+        }
+      });
+
+      const newSuggestions = [];
+      let totalQ = 0;
+
+      Object.keys(productGroups).forEach(code => {
+        const group = productGroups[code];
+        const K = group.multiple; // Nilai Kelipatan Kirim
+        
+        // 1. Urutkan sumber yang stoknya paling banyak (Desc)
+        group.sources.sort((a, b) => b.qty - a.qty);
+        // 2. Urutkan tujuan yang butuh paling banyak (Desc)
+        group.destinations.sort((a, b) => b.qty - a.qty);
+
+        // 3. Iterasi setiap cabang yang butuh
+        group.destinations.forEach(dest => {
+          let remainingNeed = dest.qty;
+
+          // 4. Cari stok dari daftar cabang over
+          for (let i = 0; i < group.sources.length; i++) {
+            const source = group.sources[i];
+            
+            // Skip jika stok atau kebutuhan sudah habis
+            if (source.qty <= 0 || remainingNeed <= 0) continue;
+
+            // Hitung potensi transfer maksimal berdasarkan ketersediaan dan kebutuhan
+            const maxPotentialTransfer = Math.min(remainingNeed, source.qty);
+            
+            // --- LOGIKA KELIPATAN KIRIM ---
+            // Transfer harus kelipatan K. Dibulatkan ke bawah.
+            let validTransfer = Math.floor(maxPotentialTransfer / K) * K;
+
+            // Jika hasil transfer 0 (karena stok/kebutuhan di bawah kelipatan kirim), skip
+            if (validTransfer === 0) continue;
+
+            // Simpan snapshot untuk laporan
+            const snapshotSourceStock = source.qty;
+            const snapshotDestNeed = remainingNeed;
+
+            newSuggestions.push({
+              id: Math.random().toString(36).substr(2, 9),
+              productCode: code,
+              productDesc: group.desc,
+              multiple: K, // Info untuk user
+              from: source.branch,
+              to: dest.branch,
+              qty: validTransfer,
+              sourceStockBefore: snapshotSourceStock, 
+              destNeedRemaining: snapshotDestNeed - validTransfer
+            });
+
+            // Update stok real-time
+            source.qty -= validTransfer;
+            remainingNeed -= validTransfer;
+            totalQ += validTransfer;
+
+            // Jika kebutuhan cabang ini sudah < K (tidak bisa terima kiriman lagi), stop
+            if (remainingNeed < K) break; 
+          }
+        });
+      });
+
+      setSuggestions(newSuggestions);
+      setStats({
+        totalMoves: newSuggestions.length,
+        totalQty: totalQ,
+        uniqueProducts: Object.keys(productGroups).length
+      });
+      setStep(3);
+
+    } catch (error) {
+      console.error(error);
+      alert("Terjadi kesalahan analisis.");
+    }
+  };
+
+  const downloadCSV = () => {
+    const headers = [
+      "Kode Produk", 
+      "Deskripsi", 
+      "Kelipatan Kirim",
+      "Dari Cabang", 
+      "Sisa Stok (Sebelum Trf)", 
+      "Ke Cabang", 
+      "Qty Transfer (Sesuai Kelipatan)"
+    ];
+    
+    const rows = suggestions.map(s => [
+      s.productCode, 
+      `"${s.productDesc || ''}"`, // Wrap description agar aman
+      s.multiple,
+      s.from, 
+      s.sourceStockBefore, 
+      s.to, 
+      s.qty
+    ]);
+    
+    // GANTI DELIMITER MENJADI TITIK KOMA (;)
+    const delimiter = ";";
+    
+    let csvContent = "data:text/csv;charset=utf-8," 
+        + headers.join(delimiter) + "\n" 
+        + rows.map(e => e.join(delimiter)).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "rekomendasi_dropping_kelipatan.csv");
+    document.body.appendChild(link);
+    link.click();
+  };
+
+  const filteredSuggestions = useMemo(() => {
+    return suggestions.filter(item => 
+      item.productDesc?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.productCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.from?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.to?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [suggestions, searchTerm]);
+
+  // --- Render Steps ---
+
+  const renderStep1 = () => (
+    <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer relative min-h-[300px]">
+      <input 
+        type="file" 
+        accept=".xlsx, .xls, .csv" 
+        onChange={handleFileUpload} 
+        disabled={!isScriptLoaded}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+      />
+      
+      {scriptError ? (
+        <div className="flex flex-col items-center text-red-500">
+           <AlertCircle className="w-16 h-16 mb-4" />
+           <h3 className="text-xl font-semibold">Error</h3>
+        </div>
+      ) : !isScriptLoaded ? (
+        <div className="flex flex-col items-center text-gray-400">
+          <RefreshCw className="w-16 h-16 animate-spin mb-4" />
+          <h3 className="text-xl font-semibold">Memuat Modul...</h3>
+        </div>
+      ) : (
+        <>
+          <FileSpreadsheet className="w-16 h-16 text-green-600 mb-4" />
+          <h3 className="text-xl font-semibold text-gray-700">Upload File Excel</h3>
+          <p className="text-gray-500 mt-2 text-center">Tarik file ke sini atau klik untuk browse</p>
+        </>
+      )}
+    </div>
+  );
+
+  const renderStep2 = () => (
+    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+          <Settings className="w-5 h-5" /> Konfigurasi
+        </h3>
+        <button 
+          onClick={handleAnalyze}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+        >
+          Analisa (Sesuai Kelipatan) <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="space-y-6">
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Baris Header</label>
+            <input 
+              type="number" 
+              min="1" 
+              value={headerRowIndex + 1} 
+              onChange={(e) => setHeaderRowIndex(parseInt(e.target.value) - 1)}
+              className="w-20 p-2 border border-gray-300 rounded"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1">KOLOM CABANG</label>
+              <input type="text" value={colMapping.branch} onChange={(e) => setColMapping({...colMapping, branch: e.target.value.toUpperCase()})} className="w-full p-2 border rounded font-mono uppercase" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1">KOLOM KODE PRODUK</label>
+              <input type="text" value={colMapping.productCode} onChange={(e) => setColMapping({...colMapping, productCode: e.target.value.toUpperCase()})} className="w-full p-2 border rounded font-mono uppercase" />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-bold text-gray-500 mb-1">KOLOM NAMA PRODUK</label>
+              <input type="text" value={colMapping.productDesc} onChange={(e) => setColMapping({...colMapping, productDesc: e.target.value.toUpperCase()})} className="w-full p-2 border rounded font-mono uppercase" />
+            </div>
+            
+            <div className="relative pt-4">
+              <label className="block text-xs font-bold text-green-700 mb-1">KOLOM OVER (SUMBER)</label>
+              <input type="text" value={colMapping.overStock} onChange={(e) => setColMapping({...colMapping, overStock: e.target.value.toUpperCase()})} className="w-full p-2 border-2 border-green-200 bg-green-50 rounded font-mono uppercase text-green-800" />
+            </div>
+            <div className="relative pt-4">
+              <label className="block text-xs font-bold text-red-700 mb-1">KOLOM DROP (BUTUH)</label>
+              <input type="text" value={colMapping.planDrop} onChange={(e) => setColMapping({...colMapping, planDrop: e.target.value.toUpperCase()})} className="w-full p-2 border-2 border-red-200 bg-red-50 rounded font-mono uppercase text-red-800" />
+            </div>
+
+            {/* Input Kolom Kelipatan Kirim */}
+            <div className="relative pt-4 col-span-2">
+              <label className="block text-xs font-bold text-purple-700 mb-1 flex items-center gap-1">
+                <Box className="w-3 h-3" /> KOLOM KELIPATAN KIRIM
+              </label>
+              <input 
+                type="text" 
+                value={colMapping.multiple} 
+                onChange={(e) => setColMapping({...colMapping, multiple: e.target.value.toUpperCase()})} 
+                className="w-full p-2 border-2 border-purple-200 bg-purple-50 rounded font-mono uppercase text-purple-800" 
+                placeholder="AP"
+              />
+              <p className="text-[10px] text-gray-500 mt-1">Alokasi akan dibulatkan ke bawah mengikuti kelipatan kolom ini.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="overflow-auto border border-gray-200 rounded-lg bg-gray-50 max-h-[400px]">
+          <table className="w-full text-xs text-left whitespace-nowrap">
+            <thead>
+              <tr>
+                <th className="p-2 bg-gray-200 sticky top-0 border-b border-gray-300 w-10 text-center">#</th>
+                {previewData.length > 0 && previewData[0].map((_, i) => (
+                  <th key={i} className={`p-2 sticky top-0 border-b border-gray-300 min-w-[40px] text-center font-mono ${
+                    getColLetter(i) === colMapping.overStock ? 'bg-green-200 text-green-900 font-bold' : 
+                    getColLetter(i) === colMapping.planDrop ? 'bg-red-200 text-red-900 font-bold' : 
+                    getColLetter(i) === colMapping.multiple ? 'bg-purple-200 text-purple-900 font-bold' : 'bg-gray-200'
+                  }`}>
+                    {getColLetter(i)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {previewData.map((row, rIdx) => (
+                <tr key={rIdx} className={rIdx === headerRowIndex ? 'bg-blue-100 font-bold' : 'hover:bg-gray-100'}>
+                  <td className="p-2 border-b border-r text-center">{rIdx + 1}</td>
+                  {row.map((cell, cIdx) => (
+                    <td key={cIdx} className="p-2 border-b border-r max-w-[100px] truncate">{cell}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderStep3 = () => (
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+        <div>
+          <h3 className="text-xl font-bold text-gray-800">Hasil Dropping</h3>
+          <p className="text-sm text-gray-500">Angka transfer sudah disesuaikan dengan Kelipatan Kirim.</p>
+        </div>
+        <div className="flex gap-2 w-full md:w-auto">
+          <div className="relative flex-1 md:flex-none">
+            <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+            <input 
+              type="text" 
+              placeholder="Cari..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 pr-4 py-2 border border-gray-300 rounded-lg w-full md:w-64"
+            />
+          </div>
+          <button onClick={downloadCSV} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+            <Download className="w-4 h-4" /> CSV Final
+          </button>
+          <button onClick={() => { setStep(2); setSuggestions([]); }} className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm">
+            Ulangi
+          </button>
+        </div>
+      </div>
+      
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="text-xs text-gray-700 uppercase bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-4 py-3">Produk</th>
+                <th className="px-4 py-3 text-center w-20">Pack</th>
+                <th className="px-4 py-3 bg-green-50 border-l border-green-100">Dari (Sumber)</th>
+                <th className="px-4 py-3 bg-green-50 border-r border-green-100 text-right w-24">Stok Saat Itu</th>
+                <th className="px-2 py-3 text-center w-8"></th>
+                <th className="px-4 py-3 bg-red-50 border-l border-red-100">Ke (Tujuan)</th>
+                <th className="px-4 py-3 text-right bg-blue-50 w-32 font-bold text-blue-700">Qty Transfer</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {filteredSuggestions.length > 0 ? (
+                filteredSuggestions.map((item) => (
+                  <tr key={item.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <div className="font-bold text-gray-900 flex items-center gap-2">
+                         <Package className="w-4 h-4 text-blue-500"/> {item.productCode}
+                      </div>
+                      <div className="text-xs text-gray-500 max-w-[200px] truncate" title={item.productDesc}>{item.productDesc}</div>
+                    </td>
+
+                    <td className="px-4 py-3 text-center">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        x{item.multiple}
+                      </span>
+                    </td>
+                    
+                    {/* Source Info */}
+                    <td className="px-4 py-3 bg-green-50/30 border-l border-gray-100 font-medium text-green-800">
+                      {item.from}
+                    </td>
+                    <td className="px-4 py-3 bg-green-50/30 text-right text-gray-500 text-xs font-mono">
+                       {item.sourceStockBefore}
+                    </td>
+
+                    <td className="px-2 py-3 text-center text-gray-400">
+                      <ArrowRight className="w-4 h-4 inline" />
+                    </td>
+
+                    {/* Destination Info */}
+                    <td className="px-4 py-3 bg-red-50/30 border-l border-gray-100 font-medium text-red-800">
+                      {item.to}
+                    </td>
+
+                    {/* Result */}
+                    <td className="px-4 py-3 text-right font-bold text-lg text-blue-600 bg-blue-50/30">
+                      {item.qty}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
+                    <div className="flex flex-col items-center">
+                      <Info className="w-12 h-12 text-gray-300 mb-2" />
+                      <p>Tidak ada saran alokasi yang ditemukan.</p>
+                      <p className="text-xs mt-1">Pastikan stok Over mencukupi minimal 1x Kelipatan Kirim.</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="bg-gray-50 p-3 border-t text-xs text-gray-500 flex justify-between">
+           <span>Total Saran: {filteredSuggestions.length} baris</span>
+           <span>Total Qty: {filteredSuggestions.reduce((acc, curr) => acc + curr.qty, 0).toLocaleString()}</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-100 text-gray-800 font-sans">
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-gray-900">SCM Dropping Optimizer v4</h1>
+          <p className="text-gray-600 text-sm">Analisis stok dengan aturan Kelipatan Kirim (Column AP).</p>
+        </div>
+
+        {/* Simple Steps */}
+        <div className="flex gap-2 mb-6">
+          {[1,2,3].map(s => (
+            <div key={s} className={`h-2 flex-1 rounded-full ${step >= s ? 'bg-blue-600' : 'bg-gray-200'}`} />
+          ))}
+        </div>
+
+        {step === 1 && renderStep1()}
+        {step === 2 && renderStep2()}
+        {step === 3 && renderStep3()}
+      </div>
+    </div>
+  );
+};
+
+export default App;
