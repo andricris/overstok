@@ -18,25 +18,31 @@
     <!-- 4. SheetJS (Untuk baca Excel) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
+    <!-- 5. Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
     <style>
-        body { background-color: #f3f4f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body { 
+            background-color: #f8fafc; 
+            font-family: 'Inter', sans-serif; 
+            color: #1e293b;
+        }
+        
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
         
-        /* Custom Scrollbar for tables */
-        .custom-scrollbar::-webkit-scrollbar {
-            height: 8px;
-            width: 8px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: #f1f1f1; 
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #cbd5e1; 
-            border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8; 
+        .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
         }
     </style>
 </head>
@@ -44,7 +50,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // --- 1. DATA RAYONISASI BARU ---
+        // --- 1. DATA RAYONISASI & PRIORITAS ---
         const RAYON_MAPPING = {
             'BDG': 'JABODUNGTABEK', 'BKS': 'JABODUNGTABEK', 'JKT': 'JABODUNGTABEK', 
             'TGR': 'JABODUNGTABEK', 'BGR': 'JABODUNGTABEK', 'JAK': 'JABODUNGTABEK', 'JKT3': 'JABODUNGTABEK',
@@ -59,7 +65,6 @@
             'PLU': 'CABANG JAUH', 'KDI': 'CABANG JAUH'
         };
 
-        // --- 2. SKALA PRIORITAS ---
         const PRIORITY_MATRIX = {
             'JABODUNGTABEK': ['JABODUNGTABEK', 'JAWA TENGAH', 'JAWA TIMUR', 'SUMATERA', 'CABANG JAUH'],
             'JAWA TENGAH':   ['JAWA TENGAH', 'JAWA TIMUR', 'JABODUNGTABEK', 'SUMATERA', 'CABANG JAUH'],
@@ -68,21 +73,12 @@
             'CABANG JAUH':   ['JABODUNGTABEK', 'CABANG JAUH', 'JAWA TENGAH', 'JAWA TIMUR', 'SUMATERA']
         };
 
-        // --- ICONS ---
-        const IconFile = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h2"/><path d="M8 17h2"/><path d="M14 13h2"/><path d="M14 17h2"/></svg>;
-        const IconArrowRight = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>;
-        const IconSettings = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.39a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>;
-        const IconCheck = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
-        const IconDownload = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>;
-        const IconSearch = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
-        const IconPackage = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>;
-        const IconMapPin = () => <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>;
-        const IconInfo = () => <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
-        const IconAlert = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
-        const IconEdit = () => <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>;
-        const IconWarning = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-500"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+        // --- OPTIMIZED ICON COMPONENT ---
+        const Icon = ({ name, size = 18, className = "" }) => {
+            return <i data-lucide={name} width={size} height={size} className={className}></i>;
+        };
 
-        // --- HELPER FUNCTIONS ---
+        // --- HELPERS ---
         const getColLetter = (colIndex) => {
             let temp, letter = '';
             while (colIndex >= 0) {
@@ -104,18 +100,21 @@
 
         const getRayon = (branchCode) => {
             if (!branchCode) return 'UNKNOWN';
-            // Membersihkan kode cabang dari angka dan spasi untuk matching
             const cleanCode = String(branchCode).toUpperCase().replace(/[^A-Z]/g, '');
             const prefix3 = cleanCode.substring(0, 3);
-            if (RAYON_MAPPING[prefix3]) return RAYON_MAPPING[prefix3];
-            return 'OTHER';
+            return RAYON_MAPPING[prefix3] || 'OTHER';
         };
 
+        const PRIORITY_CACHE = {};
         const getPriorityScore = (sourceRayon, destRayon) => {
+            const key = `${sourceRayon}|${destRayon}`;
+            if (PRIORITY_CACHE[key]) return PRIORITY_CACHE[key];
             const priorities = PRIORITY_MATRIX[destRayon];
             if (!priorities) return 99;
             const idx = priorities.indexOf(sourceRayon);
-            return idx === -1 ? 99 : idx + 1;
+            const score = idx === -1 ? 99 : idx + 1;
+            PRIORITY_CACHE[key] = score;
+            return score;
         };
 
         const parseSmartNumber = (val) => {
@@ -123,30 +122,32 @@
             if (!val) return 0;
             const strVal = String(val).trim();
             if (strVal === '-' || strVal === '') return 0;
-            let result = 0;
-            if (strVal.includes(',') && !strVal.includes('.')) {
-                result = parseFloat(strVal.replace(',', '.'));
-            } else {
-                result = parseFloat(strVal);
-            }
-            return Math.floor(result) || 0;
+            return Math.floor(parseFloat(strVal.replace(',', '.'))) || 0;
         };
 
-        // --- TOAST COMPONENT ---
+        // --- COMPONENTS ---
         const Toast = ({ message, type, onClose }) => {
             if (!message) return null;
-            const bgClass = type === 'error' ? 'bg-red-600' : 'bg-green-600';
-            
+            const bgClass = type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200';
+            const iconName = type === 'error' ? 'alert-circle' : 'check-circle-2';
             return (
-                <div className={`fixed top-4 right-4 z-50 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-fade-in-down ${bgClass}`}>
-                    {type === 'error' ? <IconAlert /> : <IconCheck />}
-                    <span className="font-medium">{message}</span>
-                    <button onClick={onClose} className="opacity-75 hover:opacity-100 font-bold ml-2">✕</button>
+                <div className={`fixed top-6 right-6 z-50 px-4 py-3 rounded-lg shadow-xl border flex items-center gap-3 animate-fade-in-down ${bgClass}`}>
+                    <Icon name={iconName} size={20} />
+                    <span className="font-medium text-sm">{message}</span>
+                    <button onClick={onClose} className="opacity-60 hover:opacity-100 ml-2"><Icon name="x" size={16} /></button>
                 </div>
             );
         };
 
-        // --- MAIN APP COMPONENT ---
+        const LoadingOverlay = () => (
+            <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[60] flex flex-col items-center justify-center">
+                <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full spin mb-4"></div>
+                <h3 className="text-lg font-bold text-gray-800">Sedang Menganalisa...</h3>
+                <p className="text-gray-500 text-sm">Mohon tunggu, memproses ribuan data</p>
+            </div>
+        );
+
+        // --- MAIN APP ---
         const App = () => {
             const [step, setStep] = React.useState(1);
             const [workbook, setWorkbook] = React.useState(null);
@@ -155,266 +156,309 @@
             const [headerRowIndex, setHeaderRowIndex] = React.useState(4);
             const [suggestions, setSuggestions] = React.useState([]);
             const [searchTerm, setSearchTerm] = React.useState('');
-            
-            // Stores total allocation per destination to show warning
+            const [isProcessing, setIsProcessing] = React.useState(false);
             const [allocationsMap, setAllocationsMap] = React.useState({}); 
 
-            const [columnFilters, setColumnFilters] = React.useState({
-                product: '',
-                priority: 'ALL',
-                source: '',
-                destination: '',
-                qty: ''
-            });
-            
-            const [notification, setNotification] = React.useState({ message: '', type: '' });
+            // Pagination State
+            const [currentPage, setCurrentPage] = React.useState(1);
+            const [itemsPerPage, setItemsPerPage] = React.useState(50);
 
+            const [columnFilters, setColumnFilters] = React.useState({ product: '', priority: 'ALL', source: '', destination: '', qty: '' });
+            const [notification, setNotification] = React.useState({ message: '', type: '' });
+            
             const showNotify = (msg, type = 'error') => {
                 setNotification({ message: msg, type });
                 setTimeout(() => setNotification({ message: '', type: '' }), 5000);
             };
 
             const [colMapping, setColMapping] = React.useState({
-                branch: 'A',
-                productCode: 'E',
-                productDesc: 'F',
-                planDrop: 'AY',
-                overStock: 'AZ',
-                multiple: 'AP'
+                branch: 'A', productCode: 'E', productDesc: 'F', planDrop: 'AY', overStock: 'AZ', multiple: 'AP'
             });
+
+            const [calcConfig, setCalcConfig] = React.useState({ stockCol: 'AA', salesCol: 'V', bufferCol: 'AL' });
+
+            React.useEffect(() => {
+                lucide.createIcons();
+            }); 
 
             const handleFileUpload = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
+                setIsProcessing(true);
+                
+                setTimeout(() => {
+                    const reader = new FileReader();
+                    reader.onload = (evt) => {
+                        try {
+                            const bstr = evt.target.result;
+                            const wb = XLSX.read(bstr, { type: 'binary' });
+                            setWorkbook(wb);
+                            if (!wb.SheetNames.length) throw new Error("File Kosong");
+                            
+                            const firstSheet = wb.SheetNames[0];
+                            setSheetName(firstSheet);
+                            const ws = wb.Sheets[firstSheet];
+                            const data = XLSX.utils.sheet_to_json(ws, { header: 1, range: 0, defval: "" });
+                            setPreviewData(data.slice(0, 15));
+                            setStep(2);
+                            showNotify("File berhasil dimuat", "success");
+                        } catch (err) {
+                            showNotify("Gagal baca file: " + err.message, 'error');
+                        } finally {
+                            setIsProcessing(false);
+                        }
+                    };
+                    reader.readAsBinaryString(file);
+                }, 100);
+            };
 
-                const reader = new FileReader();
-                reader.onload = (evt) => {
+            const handleCalculateOverstock = () => {
+                setIsProcessing(true);
+                setTimeout(() => {
                     try {
-                        const bstr = evt.target.result;
-                        const wb = XLSX.read(bstr, { type: 'binary' });
-                        setWorkbook(wb);
-                        if (!wb.SheetNames.length) { showNotify("File Kosong", 'error'); return; }
-                        const firstSheet = wb.SheetNames[0];
-                        setSheetName(firstSheet);
-                        const ws = wb.Sheets[firstSheet];
-                        const data = XLSX.utils.sheet_to_json(ws, { header: 1, range: 0, defval: "" });
-                        setPreviewData(data.slice(0, 15));
-                        setStep(2);
-                        showNotify("File dimuat", "success");
+                        const ws = workbook.Sheets[sheetName];
+                        const range = XLSX.utils.decode_range(ws['!ref']);
+                        const idxStock = getColIndex(calcConfig.stockCol.toUpperCase());
+                        const idxSales = getColIndex(calcConfig.salesCol.toUpperCase());
+                        const idxBuffer = getColIndex(calcConfig.bufferCol.toUpperCase());
+                        const idxOver = getColIndex(colMapping.overStock.toUpperCase());
+
+                        let countUpdated = 0;
+                        for (let R = headerRowIndex + 1; R <= range.e.r; ++R) {
+                            const cellStock = ws[XLSX.utils.encode_cell({r: R, c: idxStock})];
+                            const cellSales = ws[XLSX.utils.encode_cell({r: R, c: idxSales})];
+                            const cellBuffer = ws[XLSX.utils.encode_cell({r: R, c: idxBuffer})];
+                            
+                            const valStock = cellStock ? parseSmartNumber(cellStock.v) : 0;
+                            const valSales = cellSales ? parseSmartNumber(cellSales.v) : 0;
+                            const valBuffer = cellBuffer ? parseSmartNumber(cellBuffer.v) : 0;
+
+                            const safetyStock = (2 * valSales) + valBuffer;
+                            let calcOver = Math.max(0, valStock - safetyStock);
+
+                            const cellAddress = XLSX.utils.encode_cell({r: R, c: idxOver});
+                            ws[cellAddress] = { t: 'n', v: calcOver };
+                            countUpdated++;
+                        }
+                        
+                        const newData = XLSX.utils.sheet_to_json(ws, { header: 1, range: 0, defval: "" });
+                        setPreviewData(newData.slice(0, 15));
+                        showNotify(`Updated ${countUpdated} rows!`, "success");
                     } catch (err) {
-                        showNotify("Gagal baca file", 'error');
+                        showNotify("Error: " + err.message, "error");
+                    } finally {
+                        setIsProcessing(false);
                     }
-                };
-                reader.readAsBinaryString(file);
+                }, 100);
             };
 
             const handleAnalyze = () => {
-                try {
-                    const ws = workbook.Sheets[sheetName];
-                    const rawData = XLSX.utils.sheet_to_json(ws, { header: 1, range: headerRowIndex + 1, defval: 0 });
+                setIsProcessing(true); 
+                setTimeout(() => {
+                    try {
+                        const ws = workbook.Sheets[sheetName];
+                        const rawData = XLSX.utils.sheet_to_json(ws, { header: 1, range: headerRowIndex + 1, defval: 0 });
 
-                    const idx = {
-                        branch: getColIndex(colMapping.branch.toUpperCase()),
-                        code: getColIndex(colMapping.productCode.toUpperCase()),
-                        desc: getColIndex(colMapping.productDesc.toUpperCase()),
-                        need: getColIndex(colMapping.planDrop.toUpperCase()),
-                        over: getColIndex(colMapping.overStock.toUpperCase()),
-                        multiple: getColIndex(colMapping.multiple.toUpperCase()),
-                    };
-
-                    const productGroups = {};
-
-                    // 1. DATA AGGREGATION & CLEANING
-                    rawData.forEach(row => {
-                        if (!row || row.length <= idx.code) return;
-                        
-                        const pCode = String(row[idx.code]).trim();
-                        const branchRaw = String(row[idx.branch] || "Unknown").trim().toUpperCase();
-                        
-                        if (!pCode || !branchRaw) return;
-                        
-                        let multipleVal = parseSmartNumber(row[idx.multiple]);
-                        if (multipleVal <= 0) multipleVal = 1;
-
-                        if (!productGroups[pCode]) {
-                            productGroups[pCode] = {
-                                desc: row[idx.desc] || "Tanpa Nama",
-                                multiple: multipleVal,
-                                sources: [],
-                                destinations: []
-                            };
-                        }
-
-                        const rayon = getRayon(branchRaw);
-                        const overQty = parseSmartNumber(row[idx.over]);
-                        const needQty = parseSmartNumber(row[idx.need]);
-
-                        // AGREGASI SUMBER
-                        if (overQty > 0) {
-                            const existingSource = productGroups[pCode].sources.find(s => s.branch === branchRaw);
-                            if (existingSource) {
-                                existingSource.qty += overQty; 
-                                existingSource.initialOver += overQty; 
-                            } else {
-                                productGroups[pCode].sources.push({ 
-                                    branch: branchRaw, 
-                                    rayon, 
-                                    qty: overQty, 
-                                    initialOver: overQty
-                                });
-                            }
-                        }
-                        
-                        // AGREGASI TUJUAN
-                        if (needQty > 0) {
-                            const existingDest = productGroups[pCode].destinations.find(d => d.branch === branchRaw);
-                            if (existingDest) {
-                                existingDest.qty += needQty;
-                                existingDest.initialNeed = existingDest.qty; 
-                            } else {
-                                productGroups[pCode].destinations.push({ 
-                                    branch: branchRaw, 
-                                    rayon, 
-                                    qty: needQty,
-                                    initialNeed: needQty 
-                                });
-                            }
-                        }
-                    });
-
-                    const newSuggestions = [];
-                    const tempAllocMap = {}; 
-
-                    Object.keys(productGroups).forEach(code => {
-                        const group = productGroups[code];
-                        const K = group.multiple;
-                        
-                        const potentialDestinations = group.destinations.map(d => ({...d})).sort((a,b) => b.qty - a.qty);
-                        
-                        // Sort Sources & Destinations
-                        group.sources.forEach(s => s.usageCount = 0);
-                        group.destinations.sort((a, b) => b.qty - a.qty);
-
-                        const allocate = (priorityFilterFn) => {
-                            group.destinations.forEach(dest => {
-                                if (dest.qty < K) return; 
-
-                                const validSources = group.sources.filter(s => 
-                                    s.qty >= K && 
-                                    s.usageCount < 3 && 
-                                    priorityFilterFn(getPriorityScore(s.rayon, dest.rayon))
-                                );
-
-                                validSources.forEach(s => s.tempScore = getPriorityScore(s.rayon, dest.rayon));
-                                validSources.sort((a, b) => {
-                                    if (a.tempScore !== b.tempScore) return a.tempScore - b.tempScore;
-                                    const aFits = a.qty >= dest.qty;
-                                    const bFits = b.qty >= dest.qty;
-                                    if (aFits && !bFits) return -1;
-                                    if (!aFits && bFits) return 1;
-                                    return b.qty - a.qty;
-                                });
-
-                                for (let i = 0; i < validSources.length; i++) {
-                                    if (dest.qty < K) break; 
-                                    
-                                    const source = validSources[i];
-                                    if (source.tempScore > 5) continue;
-
-                                    const maxPotential = Math.min(dest.qty, source.qty);
-                                    const validTransfer = Math.floor(maxPotential / K) * K;
-
-                                    if (validTransfer > 0) {
-                                        const allocKey = `${code}_${dest.branch}`;
-                                        if (!tempAllocMap[allocKey]) tempAllocMap[allocKey] = { total: 0, need: dest.initialNeed };
-                                        
-                                        // Simple safeguard against massive over-allocation
-                                        if (tempAllocMap[allocKey].total + validTransfer > dest.initialNeed + (K-1)) {
-                                            // Optional break or continue logic
-                                        }
-
-                                        newSuggestions.push({
-                                            id: Math.random().toString(36).substr(2, 9),
-                                            productCode: code,
-                                            productDesc: group.desc,
-                                            multiple: K,
-                                            from: source.branch,
-                                            fromRayon: source.rayon,
-                                            to: dest.branch,
-                                            toRayon: dest.rayon,
-                                            qty: validTransfer,
-                                            priorityRank: source.tempScore,
-                                            sourceStockBefore: source.qty,
-                                            initialNeed: dest.initialNeed,
-                                            
-                                            // Options for manual override
-                                            availableOptions: potentialDestinations.map(d => ({
-                                                branch: d.branch,
-                                                rayon: d.rayon,
-                                                need: d.initialNeed 
-                                            })),
-                                        });
-
-                                        source.qty -= validTransfer;
-                                        dest.qty -= validTransfer;
-                                        source.usageCount++;
-                                        
-                                        tempAllocMap[allocKey].total += validTransfer;
-                                    }
-                                }
-                            });
+                        const idx = {
+                            branch: getColIndex(colMapping.branch.toUpperCase()),
+                            code: getColIndex(colMapping.productCode.toUpperCase()),
+                            desc: getColIndex(colMapping.productDesc.toUpperCase()),
+                            need: getColIndex(colMapping.planDrop.toUpperCase()),
+                            over: getColIndex(colMapping.overStock.toUpperCase()),
+                            multiple: getColIndex(colMapping.multiple.toUpperCase()),
                         };
 
-                        allocate((score) => score === 1);
-                        allocate((score) => score > 1 && score <= 5);
-                    });
-                    
-                    setAllocationsMap(tempAllocMap);
+                        let hasOver = false;
+                        for(let i=0; i<Math.min(rawData.length, 1000); i++) {
+                            if (parseSmartNumber(rawData[i][idx.over]) > 0) { hasOver = true; break; }
+                        }
+                        if (!hasOver) {
+                            const fullCheck = rawData.some(r => parseSmartNumber(r[idx.over]) > 0);
+                            if(!fullCheck) throw new Error("Data Overstock (Kolom AZ) Kosong/Nol semua.");
+                        }
 
-                    if (newSuggestions.length === 0) {
-                        showNotify("Tidak ada saran dropping", "error");
-                    } else {
-                        setSuggestions(newSuggestions);
-                        setStep(3);
-                        showNotify(`Selesai! ${newSuggestions.length} saran.`, "success");
+                        const productGroups = {};
+
+                        for (let i = 0; i < rawData.length; i++) {
+                            const row = rawData[i];
+                            if (!row || row.length <= idx.code) continue;
+
+                            const pCode = String(row[idx.code]).trim();
+                            if (!pCode) continue;
+                            const branchRaw = String(row[idx.branch] || "Unknown").trim().toUpperCase();
+                            
+                            let multipleVal = parseSmartNumber(row[idx.multiple]);
+                            if (multipleVal <= 0) multipleVal = 1;
+
+                            if (!productGroups[pCode]) {
+                                productGroups[pCode] = {
+                                    desc: row[idx.desc] || "Tanpa Nama",
+                                    multiple: multipleVal,
+                                    sources: [], destinations: []
+                                };
+                            }
+
+                            const rayon = getRayon(branchRaw);
+                            const overQty = parseSmartNumber(row[idx.over]);
+                            const needQty = parseSmartNumber(row[idx.need]);
+
+                            if (overQty > 0) {
+                                const sources = productGroups[pCode].sources;
+                                let found = false;
+                                for(let j=0; j<sources.length; j++) {
+                                    if(sources[j].branch === branchRaw) {
+                                        sources[j].qty += overQty;
+                                        sources[j].initialOver += overQty;
+                                        found = true; break;
+                                    }
+                                }
+                                if(!found) sources.push({ branch: branchRaw, rayon, qty: overQty, initialOver: overQty });
+                            }
+
+                            if (needQty > 0) {
+                                const dests = productGroups[pCode].destinations;
+                                let found = false;
+                                for(let j=0; j<dests.length; j++) {
+                                    if(dests[j].branch === branchRaw) {
+                                        dests[j].qty += needQty;
+                                        dests[j].initialNeed = dests[j].qty;
+                                        found = true; break;
+                                    }
+                                }
+                                if(!found) dests.push({ branch: branchRaw, rayon, qty: needQty, initialNeed: needQty });
+                            }
+                        }
+
+                        const newSuggestions = [];
+                        const tempAllocMap = {};
+
+                        const productKeys = Object.keys(productGroups);
+                        for (let k = 0; k < productKeys.length; k++) {
+                            const code = productKeys[k];
+                            const group = productGroups[code];
+                            const K = group.multiple;
+
+                            if (group.sources.length === 0 || group.destinations.length === 0) continue;
+
+                            const potentialDestinations = group.destinations.map(d => ({
+                                branch: d.branch, rayon: d.rayon, need: d.initialNeed
+                            })).sort((a,b) => b.need - a.need);
+
+                            for(let s=0; s<group.sources.length; s++) group.sources[s].usageCount = 0;
+                            group.destinations.sort((a, b) => b.qty - a.qty);
+
+                            const runAllocation = (priorityFilterFn) => {
+                                for (let d = 0; d < group.destinations.length; d++) {
+                                    const dest = group.destinations[d];
+                                    if (dest.qty < K) continue;
+
+                                    let validSources = [];
+                                    for(let s=0; s<group.sources.length; s++) {
+                                        const src = group.sources[s];
+                                        if (src.qty >= K && src.usageCount < 3) {
+                                            const score = getPriorityScore(src.rayon, dest.rayon);
+                                            if (priorityFilterFn(score)) {
+                                                src.tempScore = score; 
+                                                validSources.push(src);
+                                            }
+                                        }
+                                    }
+
+                                    if (validSources.length === 0) continue;
+
+                                    validSources.sort((a, b) => {
+                                        if (a.tempScore !== b.tempScore) return a.tempScore - b.tempScore;
+                                        const aFits = a.qty >= dest.qty;
+                                        const bFits = b.qty >= dest.qty;
+                                        if (aFits && !bFits) return -1;
+                                        if (!aFits && bFits) return 1;
+                                        return b.qty - a.qty;
+                                    });
+
+                                    for (let i = 0; i < validSources.length; i++) {
+                                        if (dest.qty < K) break;
+                                        const source = validSources[i];
+                                        if (source.tempScore > 5) continue;
+
+                                        const maxPotential = Math.min(dest.qty, source.qty);
+                                        const validTransfer = Math.floor(maxPotential / K) * K;
+
+                                        if (validTransfer > 0) {
+                                            const allocKey = `${code}_${dest.branch}`;
+                                            if (!tempAllocMap[allocKey]) tempAllocMap[allocKey] = { total: 0, need: dest.initialNeed };
+
+                                            newSuggestions.push({
+                                                id: Math.random().toString(36).substr(2, 9),
+                                                productCode: code,
+                                                productDesc: group.desc,
+                                                multiple: K,
+                                                from: source.branch,
+                                                fromRayon: source.rayon,
+                                                to: dest.branch,
+                                                toRayon: dest.rayon,
+                                                qty: validTransfer,
+                                                priorityRank: source.tempScore,
+                                                sourceStockBefore: source.qty,
+                                                initialNeed: dest.initialNeed,
+                                                availableOptions: potentialDestinations,
+                                            });
+
+                                            source.qty -= validTransfer;
+                                            dest.qty -= validTransfer;
+                                            source.usageCount++;
+                                            tempAllocMap[allocKey].total += validTransfer;
+                                        }
+                                    }
+                                }
+                            };
+
+                            runAllocation(score => score === 1);
+                            runAllocation(score => score > 1 && score <= 5);
+                        }
+
+                        setAllocationsMap(tempAllocMap);
+                        if (newSuggestions.length === 0) {
+                            showNotify("Tidak ada saran dropping", "error");
+                        } else {
+                            setSuggestions(newSuggestions);
+                            setStep(3);
+                            setCurrentPage(1); // Reset page
+                            showNotify(`Selesai! ${newSuggestions.length} saran.`, "success");
+                        }
+                    } catch (err) {
+                        showNotify("Error Analisa: " + err.message, "error");
+                    } finally {
+                        setIsProcessing(false);
                     }
-
-                } catch (err) {
-                    showNotify("Error: " + err.message, "error");
-                }
+                }, 100); 
             };
 
             const handleDestinationChange = (id, newBranch) => {
                 setSuggestions(prev => {
-                    const newSuggestions = prev.map(item => {
+                    const nextState = prev.map(item => {
                         if (item.id !== id) return item;
                         const targetOption = item.availableOptions.find(o => o.branch === newBranch);
                         if (!targetOption) return item;
 
                         const newPriority = getPriorityScore(item.fromRayon, targetOption.rayon);
-                        const maxPossible = Math.min(item.sourceStockBefore, 9999); 
+                        const maxPossible = Math.min(item.sourceStockBefore, 9999);
                         let newQty = Math.floor(maxPossible / item.multiple) * item.multiple;
-                        if (newQty <= 0) newQty = item.multiple; 
+                        if (newQty <= 0) newQty = item.multiple;
 
-                        return {
-                            ...item,
-                            to: newBranch,
-                            toRayon: targetOption.rayon,
-                            qty: newQty,
-                            priorityRank: newPriority,
-                            initialNeed: targetOption.need
+                        return { 
+                            ...item, to: newBranch, toRayon: targetOption.rayon, 
+                            qty: newQty, priorityRank: newPriority, initialNeed: targetOption.need 
                         };
                     });
-
-                    const tempMap = {};
-                    newSuggestions.forEach(s => {
+                    
+                    const newMap = {};
+                    nextState.forEach(s => {
                         const key = `${s.productCode}_${s.to}`;
-                        if (!tempMap[key]) tempMap[key] = { total: 0, need: s.initialNeed };
-                        tempMap[key].total += s.qty;
+                        if (!newMap[key]) newMap[key] = { total: 0, need: s.initialNeed };
+                        newMap[key].total += s.qty;
                     });
-                    setAllocationsMap(tempMap);
-
-                    return newSuggestions;
+                    setAllocationsMap(newMap);
+                    return nextState;
                 });
             };
 
@@ -422,12 +466,9 @@
                 if (suggestions.length === 0) return;
                 const headers = ["Kode Produk", "Deskripsi", "Prioritas", "Dari Cabang", "Rayon Asal", "Overstok Awal", "Ke Cabang", "Rayon Tujuan", "Kelipatan", "Qty Transfer"];
                 const rows = suggestions.map(s => [
-                    s.productCode, `"${s.productDesc || ''}"`,
-                    `PRIORITAS ${s.priorityRank}`,
-                    s.from, s.fromRayon,
-                    s.sourceStockBefore,
-                    s.to, s.toRayon,
-                    s.multiple, s.qty
+                    s.productCode, `"${s.productDesc || ''}"`, `PRIORITAS ${s.priorityRank}`,
+                    s.from, s.fromRayon, s.sourceStockBefore,
+                    s.to, s.toRayon, s.multiple, s.qty
                 ]);
                 const csvContent = "data:text/csv;charset=utf-8," + headers.join(";") + "\n" + rows.map(e => e.join(";")).join("\n");
                 const link = document.createElement("a");
@@ -439,203 +480,284 @@
 
             const filteredSuggestions = React.useMemo(() => {
                 return suggestions.filter(item => {
-                    const globalMatch = !searchTerm ||
-                        item.productDesc?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        item.productCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        item.from?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        item.to?.toLowerCase().includes(searchTerm.toLowerCase());
-                    if (!globalMatch) return false;
-
-                    const prodMatch = !columnFilters.product || item.productCode.toLowerCase().includes(columnFilters.product.toLowerCase());
-                    const priorityMatch = columnFilters.priority === 'ALL' || item.priorityRank.toString() === columnFilters.priority;
-                    const sourceMatch = !columnFilters.source || item.from.toLowerCase().includes(columnFilters.source.toLowerCase());
-                    const destMatch = !columnFilters.destination || item.to.toLowerCase().includes(columnFilters.destination.toLowerCase());
-                    const qtyMatch = !columnFilters.qty || item.qty.toString().includes(columnFilters.qty);
-
-                    return prodMatch && priorityMatch && sourceMatch && destMatch && qtyMatch;
+                    if (searchTerm) {
+                        const term = searchTerm.toLowerCase();
+                        if (!item.productDesc?.toLowerCase().includes(term) && 
+                            !item.productCode?.toLowerCase().includes(term) &&
+                            !item.from?.toLowerCase().includes(term) && 
+                            !item.to?.toLowerCase().includes(term)) return false;
+                    }
+                    if (columnFilters.product && !item.productCode.toLowerCase().includes(columnFilters.product.toLowerCase())) return false;
+                    if (columnFilters.priority !== 'ALL' && item.priorityRank.toString() !== columnFilters.priority) return false;
+                    if (columnFilters.source && !item.from.toLowerCase().includes(columnFilters.source.toLowerCase())) return false;
+                    if (columnFilters.destination && !item.to.toLowerCase().includes(columnFilters.destination.toLowerCase())) return false;
+                    if (columnFilters.qty && !item.qty.toString().includes(columnFilters.qty)) return false;
+                    return true;
                 });
             }, [suggestions, searchTerm, columnFilters]);
 
-            const handleFilterChange = (col, val) => setColumnFilters(prev => ({...prev, [col]: val}));
+            const handleFilterChange = (col, val) => {
+                setColumnFilters(prev => ({...prev, [col]: val}));
+                setCurrentPage(1); // Reset page on filter
+            };
+
+            // PAGINATION LOGIC
+            const totalPages = Math.ceil(filteredSuggestions.length / itemsPerPage);
+            const currentTableData = filteredSuggestions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
             const getPriorityBadgeColor = (rank) => {
-                switch(rank) {
-                    case 1: return 'bg-green-100 text-green-700 border-green-200';
-                    case 2: return 'bg-blue-100 text-blue-700 border-blue-200';
-                    case 3: return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-                    case 4: return 'bg-orange-100 text-orange-700 border-orange-200';
-                    case 5: return 'bg-red-100 text-red-700 border-red-200';
-                    default: return 'bg-gray-100 text-gray-700 border-gray-200';
-                }
+                const colors = { 1: 'emerald', 2: 'sky', 3: 'indigo', 4: 'orange', 5: 'rose' };
+                const c = colors[rank] || 'gray';
+                return `bg-${c}-100 text-${c}-700 border-${c}-200`;
+            };
+
+            // Helper untuk style kolom header di Step 2 (Preview)
+            const getHeaderStyle = (letter) => {
+                if (letter === colMapping.branch) return 'bg-red-100 text-red-700 border-red-200';
+                if (letter === colMapping.productCode) return 'bg-blue-100 text-blue-700 border-blue-200';
+                if (letter === colMapping.productDesc) return 'bg-gray-100 text-gray-700 border-gray-200';
+                if (letter === colMapping.planDrop) return 'bg-rose-100 text-rose-700 border-rose-200';
+                if (letter === colMapping.overStock) return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+                if (letter === colMapping.multiple) return 'bg-violet-100 text-violet-700 border-violet-200';
+                return 'bg-gray-50 text-gray-400';
+            };
+
+            // Helper untuk style cell body di Step 2 (Preview)
+            const getCellStyle = (letter) => {
+                if (letter === colMapping.branch) return 'bg-red-50/30 text-red-900 font-medium';
+                if (letter === colMapping.productCode) return 'bg-blue-50/30 text-blue-900 font-medium';
+                if (letter === colMapping.productDesc) return 'bg-gray-50/30 text-gray-900';
+                if (letter === colMapping.planDrop) return 'bg-rose-50/30 text-rose-900 font-medium';
+                if (letter === colMapping.overStock) return 'bg-emerald-50/30 text-emerald-900 font-medium';
+                if (letter === colMapping.multiple) return 'bg-violet-50/30 text-violet-900';
+                return '';
             };
 
             return (
-                <div className="min-h-screen bg-gray-50 text-gray-800 font-sans">
+                <div className="min-h-screen pb-12 relative">
+                    {isProcessing && <LoadingOverlay />}
                     <Toast message={notification.message} type={notification.type} onClose={() => setNotification({message: '', type: ''})} />
 
-                    <div className="max-w-7xl mx-auto px-4 py-8">
-                        <div className="mb-8">
-                            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">SCM Dropping Optimizer</h1>
-                            <p className="text-gray-600 mt-2">Analisis Rayonisasi (Editable Destination & Validasi).</p>
+                    <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex justify-between items-center h-16">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-blue-600 p-2 rounded-lg text-white"><Icon name="box" size={24} /></div>
+                                    <div><h1 className="text-xl font-bold text-gray-900">SCM Optimizer</h1><p className="text-xs text-gray-500">Dropping Allocation System</p></div>
+                                </div>
+                            </div>
                         </div>
+                    </div>
 
-                        <div className="flex gap-3 mb-8">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        <div className="mb-8 flex justify-center gap-4">
                             {[1, 2, 3].map(s => (
-                                <div key={s} className={`h-2 flex-1 rounded-full transition-all duration-500 ${step >= s ? 'bg-blue-600 shadow-md' : 'bg-gray-200'}`}></div>
+                                <div key={s} className={`w-3 h-3 rounded-full ${step >= s ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
                             ))}
                         </div>
 
                         {step === 1 && (
-                            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 text-center animate-fade-in-up">
-                                <div className="relative group cursor-pointer">
-                                    <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer" />
-                                    <div className="border-3 border-dashed border-gray-300 rounded-xl p-16 group-hover:bg-blue-50 group-hover:border-blue-400 transition-all duration-300">
-                                        <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-                                            <IconFile />
-                                        </div>
-                                        <h3 className="text-2xl font-semibold text-gray-800">Upload Data Stock</h3>
-                                        <div className="mt-6 inline-block bg-blue-600 text-white px-6 py-2 rounded-full font-medium shadow-lg">Pilih File</div>
+                            <div className="glass-panel rounded-2xl p-12 text-center max-w-2xl mx-auto mt-12 animate-fade-in-up">
+                                <div className="relative group cursor-pointer w-full">
+                                    <input type="file" accept=".xlsx, .xls, .csv" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 z-20 cursor-pointer" />
+                                    <div className="border-2 border-dashed border-gray-300 rounded-2xl p-12 group-hover:border-blue-500 group-hover:bg-blue-50/50 transition-all flex flex-col items-center justify-center">
+                                        <Icon name="upload-cloud" size={40} className="text-blue-500 mb-4" />
+                                        <h3 className="text-2xl font-bold text-gray-800 mb-2">Upload Data Stock</h3>
+                                        <p className="text-gray-500 mb-6">File Excel (.xlsx)</p>
+                                        <div className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold">Pilih File</div>
                                     </div>
                                 </div>
                             </div>
                         )}
 
                         {step === 2 && (
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 animate-fade-in-up">
-                                <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                                    <h3 className="text-xl font-bold flex gap-2 items-center text-gray-800"><IconSettings /> Konfigurasi Mapping</h3>
-                                    <button onClick={handleAnalyze} className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-blue-100 flex items-center justify-center gap-2">
-                                        Jalankan Analisa <IconArrowRight />
-                                    </button>
-                                </div>
-                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-                                    <div className="space-y-6">
-                                        <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100">
-                                            <label className="block text-sm font-bold text-gray-700 mb-2">Baris Header</label>
-                                            <input type="number" value={headerRowIndex + 1} onChange={(e) => setHeaderRowIndex(Math.max(0, parseInt(e.target.value) - 1))} className="w-24 p-2 border rounded-lg" />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-5">
-                                            {Object.entries(colMapping).map(([key, val]) => (
-                                                <div key={key} className={key === 'productDesc' || key === 'multiple' ? 'col-span-2' : 'col-span-1'}>
-                                                    <label className="text-xs font-bold text-gray-500 mb-1 block uppercase">{key}</label>
-                                                    <input type="text" value={val} onChange={e=>setColMapping({...colMapping, [key]:e.target.value})} className="w-full p-3 border rounded-lg font-mono uppercase bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"/>
-                                                </div>
-                                            ))}
-                                        </div>
+                            <div className="space-y-8 animate-fade-in-up">
+                                <div className="glass-panel rounded-2xl p-8">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h3 className="text-xl font-bold flex gap-2"><Icon name="settings-2"/> Konfigurasi</h3>
+                                        <button onClick={handleAnalyze} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-transform active:scale-95">
+                                            Jalankan Analisa <Icon name="play" size={18} />
+                                        </button>
                                     </div>
-                                    <div className="flex flex-col h-full">
-                                        <div className="overflow-auto border rounded-xl bg-gray-50 custom-scrollbar flex-grow max-h-[500px]">
-                                            <table className="w-full text-xs whitespace-nowrap">
-                                                <thead>
+                                    <div className="grid grid-cols-12 gap-8">
+                                        <div className="col-span-4 space-y-4">
+                                            <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                                                <label className="text-sm font-bold text-gray-700">Baris Header</label>
+                                                <input type="number" value={headerRowIndex+1} onChange={(e)=>setHeaderRowIndex(parseInt(e.target.value)-1)} className="w-20 p-2 ml-2 border rounded text-center"/>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {Object.entries(colMapping).map(([k,v])=>(
+                                                    <div key={k} className={k==='productDesc'||k==='multiple'?'col-span-2':''}>
+                                                        <label className="text-xs font-bold uppercase text-gray-500">{k}</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={v} 
+                                                            onChange={e=>setColMapping({...colMapping, [k]:e.target.value})} 
+                                                            className={`w-full p-2 border rounded font-mono uppercase font-bold ${
+                                                                k === 'branch' ? 'text-red-600 border-red-200 bg-red-50' : 
+                                                                k === 'productCode' ? 'text-blue-600 border-blue-200 bg-blue-50' : 
+                                                                k === 'planDrop' ? 'text-rose-700 border-rose-200 bg-rose-50' : 
+                                                                k === 'overStock' ? 'text-emerald-700 border-emerald-200 bg-emerald-50' : 
+                                                                k === 'multiple' ? 'text-violet-700 border-violet-200 bg-violet-50' : 
+                                                                'text-gray-700'
+                                                            }`}
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <div className="col-span-8 overflow-auto border rounded-xl max-h-[400px]">
+                                            <table className="w-full text-xs">
+                                                <thead className="sticky top-0 bg-gray-100 z-10">
                                                     <tr>
-                                                        <th className="p-3 bg-gray-200 sticky top-0 border-b">#</th>
-                                                        {previewData.length > 0 && previewData[0].map((_, i) => (
-                                                            <th key={i} className="p-3 sticky top-0 border-b bg-gray-200 font-mono">{getColLetter(i)}</th>
-                                                        ))}
+                                                        <th className="p-2 border-b text-gray-500">#</th>
+                                                        {previewData.length>0 && previewData[0].map((_,i)=>{
+                                                            const letter = getColLetter(i);
+                                                            const headerClass = getHeaderStyle(letter);
+                                                            return <th key={i} className={`p-2 border-b font-mono ${headerClass}`}>{letter}</th>
+                                                        })}
                                                     </tr>
                                                 </thead>
-                                                <tbody className="bg-white">
-                                                    {previewData.map((row, rIdx) => (
-                                                        <tr key={rIdx} className={rIdx === headerRowIndex ? 'bg-yellow-50 font-bold' : ''}>
-                                                            <td className="p-2 border-b text-center">{rIdx + 1}</td>
-                                                            {row.map((cell, cIdx) => <td key={cIdx} className="p-2 border-b border-l truncate max-w-[100px]">{cell}</td>)}
-                                                        </tr>
-                                                    ))}
+                                                <tbody>
+                                                    {previewData.map((r,ri)=><tr key={ri} className={ri===headerRowIndex?'bg-yellow-100 font-bold':''}><td className="p-2 text-center text-gray-400 bg-gray-50">{ri+1}</td>
+                                                        {r.map((c,ci)=>{
+                                                            const letter = getColLetter(ci);
+                                                            const cellClass = getCellStyle(letter);
+                                                            return <td key={ci} className={`p-2 border-l truncate max-w-[100px] ${cellClass}`}>{c}</td>
+                                                        })}
+                                                    </tr>)}
                                                 </tbody>
                                             </table>
                                         </div>
                                     </div>
+                                </div>
+
+                                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6 border border-amber-100 flex items-center justify-between">
+                                    <div>
+                                        <h3 className="font-bold text-amber-800 flex items-center gap-2">
+                                            <Icon name="calculator"/> 
+                                            Kalkulator Overstock Otomatis
+                                        </h3>
+                                        <div className="text-xs text-amber-900/80 mt-1 mb-3">
+                                            <p className="font-semibold">Rumus: Over = Stock - ((2 × Sales) + Buffer)</p>
+                                            <p className="text-[10px] text-amber-700 mt-0.5 opacity-80">*Jika hasil negatif, maka overstock dianggap 0.</p>
+                                        </div>
+                                        <div className="flex gap-4">
+                                            {Object.entries(calcConfig).map(([k,v])=>(<div key={k} className="flex items-center gap-2"><span className="text-xs font-bold text-amber-600 uppercase">{k.replace('Col','')}</span><input value={v} onChange={e=>setCalcConfig({...calcConfig,[k]:e.target.value})} className="w-10 p-1 text-center font-mono border rounded"/></div>))}
+                                        </div>
+                                    </div>
+                                    <button onClick={handleCalculateOverstock} className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-bold shadow-md">Hitung Update AZ</button>
                                 </div>
                             </div>
                         )}
 
                         {step === 3 && (
                             <div className="space-y-6 animate-fade-in-up">
-                                <div className="flex flex-col md:flex-row justify-between items-end md:items-center gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                                    <div>
-                                        <h3 className="text-xl font-bold text-gray-800">Hasil Analisa</h3>
-                                        <p className="text-sm text-gray-500">Total: <strong className="text-blue-600">{suggestions.length}</strong> saran.</p>
-                                    </div>
+                                <div className="glass-panel p-4 rounded-xl flex justify-between items-center">
+                                    <div><h3 className="font-bold text-gray-800">Hasil Analisa</h3><p className="text-sm text-gray-500">Total: <strong className="text-blue-600">{suggestions.length}</strong> saran.</p></div>
                                     <div className="flex gap-2">
-                                        <input type="text" placeholder="Cari..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-4 pr-4 py-2 border rounded-lg outline-none focus:ring-1" />
-                                        <button onClick={downloadCSV} className="bg-green-600 text-white px-5 py-2 rounded-lg text-sm font-medium flex items-center gap-2"><IconDownload /> CSV</button>
-                                        <button onClick={() => { setStep(2); setSuggestions([]); }} className="bg-gray-100 text-gray-700 px-5 py-2 rounded-lg text-sm font-medium">Ulang</button>
+                                        <input placeholder="Cari..." value={searchTerm} onChange={e=>{setSearchTerm(e.target.value); setCurrentPage(1);}} className="p-2 border rounded w-64"/>
+                                        <button onClick={downloadCSV} className="bg-emerald-600 text-white px-4 py-2 rounded font-bold flex items-center gap-2"><Icon name="download"/> CSV</button>
+                                        <button onClick={()=>{setStep(2);setSuggestions([])}} className="bg-gray-200 px-4 py-2 rounded font-bold">Ulang</button>
                                     </div>
                                 </div>
 
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                                    <div className="overflow-x-auto custom-scrollbar max-h-[600px]">
+                                <div className="bg-white rounded-xl shadow border overflow-hidden">
+                                    <div className="overflow-x-auto min-h-[400px]">
                                         <table className="w-full text-sm text-left">
-                                            <thead className="text-xs text-gray-500 uppercase bg-gray-50 border-b sticky top-0 z-10 shadow-sm">
+                                            <thead className="text-xs text-gray-500 uppercase bg-gray-50 sticky top-0 z-10 border-b">
                                                 <tr>
-                                                    <th className="px-6 py-4 font-bold align-top min-w-[200px]">Produk</th>
-                                                    <th className="px-6 py-4 text-center font-bold align-top">Prioritas</th>
-                                                    <th className="px-6 py-4 bg-green-50/50 font-bold align-top">Sumber (Over)</th>
-                                                    <th className="px-2 py-4 align-top"></th>
-                                                    <th className="px-6 py-4 bg-red-50/50 font-bold align-top min-w-[220px]">Tujuan & Validasi</th>
-                                                    <th className="px-6 py-4 text-right bg-blue-50/50 font-bold align-top">Qty</th>
+                                                    <th className="px-6 py-4 font-bold w-[250px]">Produk
+                                                        <input className="w-full mt-1 p-1 border rounded font-normal" placeholder="Filter..." value={columnFilters.product} onChange={e=>handleFilterChange('product',e.target.value)}/>
+                                                    </th>
+                                                    <th className="px-6 py-4 text-center font-bold w-[120px]">Prioritas
+                                                        <select className="w-full mt-1 p-1 border rounded font-normal" value={columnFilters.priority} onChange={e=>handleFilterChange('priority',e.target.value)}>
+                                                            <option value="ALL">All</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+                                                        </select>
+                                                    </th>
+                                                    <th className="px-6 py-4 bg-emerald-50/50 font-bold border-l border-emerald-100 min-w-[200px]">Sumber
+                                                        <input className="w-full mt-1 p-1 border rounded font-normal bg-white" placeholder="Cari..." value={columnFilters.source} onChange={e=>handleFilterChange('source',e.target.value)}/>
+                                                    </th>
+                                                    <th className="px-2"></th>
+                                                    <th className="px-6 py-4 bg-rose-50/50 font-bold border-r border-rose-100 min-w-[250px]">Tujuan
+                                                        <input className="w-full mt-1 p-1 border rounded font-normal bg-white" placeholder="Cari..." value={columnFilters.destination} onChange={e=>handleFilterChange('destination',e.target.value)}/>
+                                                    </th>
+                                                    <th className="px-6 py-4 text-right bg-blue-50/50 font-bold w-[100px]">Qty
+                                                        <input className="w-full mt-1 p-1 border rounded font-normal text-right bg-white" placeholder="..." value={columnFilters.qty} onChange={e=>handleFilterChange('qty',e.target.value)}/>
+                                                    </th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-100">
-                                                {filteredSuggestions.map((item) => {
+                                                {currentTableData.map(item => {
                                                     const allocKey = `${item.productCode}_${item.to}`;
                                                     const totalAlloc = allocationsMap[allocKey]?.total || 0;
                                                     const need = allocationsMap[allocKey]?.need || 0;
                                                     const isOver = totalAlloc > need;
-
                                                     return (
-                                                        <tr key={item.id} className="hover:bg-gray-50 transition-colors group">
+                                                        <tr key={item.id} className="hover:bg-blue-50/30 transition-colors">
                                                             <td className="px-6 py-4">
-                                                                <div className="font-bold text-gray-900 flex items-center gap-2"><IconPackage /> {item.productCode}</div>
-                                                                <div className="text-xs text-gray-500 mt-1 truncate max-w-[250px]" title={item.productDesc}>{item.productDesc}</div>
+                                                                <div className="font-bold text-gray-900 flex items-center gap-2"><Icon name="box" size={14} className="text-gray-400"/> {item.productCode}</div>
+                                                                <div className="text-xs text-gray-500 mt-1 truncate max-w-[200px]" title={item.productDesc}>{item.productDesc}</div>
                                                             </td>
                                                             <td className="px-6 py-4 text-center">
-                                                                <span className={`inline-flex px-2.5 py-1 rounded-md text-[10px] font-bold border tracking-wide uppercase ${getPriorityBadgeColor(item.priorityRank)}`}>
-                                                                    PRIORITAS {item.priorityRank}
-                                                                </span>
+                                                                <span className={`px-2 py-1 rounded text-[10px] font-bold border ${getPriorityBadgeColor(item.priorityRank)}`}>PRIO {item.priorityRank}</span>
                                                             </td>
-                                                            <td className="px-6 py-4 bg-green-50/20 border-l">
+                                                            <td className="px-6 py-4 bg-emerald-50/30 border-l border-emerald-100 relative group">
                                                                 <div className="font-bold text-gray-800">{item.from}</div>
-                                                                <div className="text-[10px] text-gray-500 flex items-center gap-1 mt-0.5"><IconMapPin /> {item.fromRayon}</div>
-                                                                <div className="text-[10px] text-green-600 font-semibold mt-1">Sisa Awal: {item.sourceStockBefore}</div>
+                                                                <div className="text-[10px] text-gray-500">{item.fromRayon}</div>
+                                                                <div className="text-[10px] text-emerald-600 font-medium">Over Awal: {item.sourceStockBefore}</div>
                                                             </td>
-                                                            <td className="px-2 py-4 text-center text-gray-300"><IconArrowRight /></td>
-                                                            <td className="px-6 py-4 bg-red-50/20 border-r relative">
-                                                                {/* DROPDOWN DESTINATION */}
+                                                            <td className="text-center text-gray-300"><Icon name="arrow-right" size={16}/></td>
+                                                            <td className="px-6 py-4 bg-rose-50/30 border-r border-rose-100 relative">
                                                                 <div className="relative">
-                                                                    <select 
-                                                                        className="w-full p-2 pr-8 border border-red-300 rounded bg-white text-sm font-bold text-gray-800 focus:ring-2 focus:ring-red-500 appearance-none cursor-pointer hover:bg-red-50 transition-colors"
-                                                                        value={item.to}
-                                                                        onChange={(e) => handleDestinationChange(item.id, e.target.value)}
-                                                                    >
-                                                                        {item.availableOptions.map((opt, idx) => (
-                                                                            <option key={idx} value={opt.branch}>
-                                                                                {opt.branch} ({opt.need !== undefined ? opt.need : 'N/A'})
-                                                                            </option>
-                                                                        ))}
+                                                                    <select className="w-full p-1 pr-6 border border-rose-200 rounded bg-white text-sm font-bold text-gray-800 focus:ring-1 appearance-none cursor-pointer" 
+                                                                        value={item.to} onChange={e=>handleDestinationChange(item.id, e.target.value)}>
+                                                                        {item.availableOptions.map((o,i)=><option key={i} value={o.branch}>{o.branch} ({o.need})</option>)}
                                                                     </select>
-                                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                                                                        <IconEdit />
-                                                                    </div>
+                                                                    <Icon name="chevron-down" size={14} className="absolute right-2 top-2 text-gray-400 pointer-events-none"/>
                                                                 </div>
-                                                                {/* WARNING INDICATOR + RAYON INFO */}
-                                                                <div className={`text-[10px] mt-1 flex justify-between items-center ${isOver ? 'text-red-700 font-bold' : 'text-gray-500'}`}>
-                                                                    <div className="flex flex-col gap-0.5">
-                                                                        <span>Butuh: {need} | Dapat: {totalAlloc}</span>
-                                                                        <span className="font-semibold text-gray-600 bg-gray-100 px-1 rounded w-fit">{item.toRayon}</span>
-                                                                    </div>
-                                                                    {isOver && <span className="flex items-center gap-1 bg-red-100 px-1 rounded border border-red-200"><IconWarning/> OVER!</span>}
+                                                                <div className={`text-[10px] mt-1 flex justify-between ${isOver?'text-red-600 font-bold':''}`}>
+                                                                    <span>Butuh: {need} | Dapat: {totalAlloc}</span>
+                                                                    <span className="bg-white px-1 rounded border">{item.toRayon}</span>
                                                                 </div>
+                                                                {isOver && <div className="text-[10px] text-red-600 font-bold flex items-center gap-1 animate-pulse"><Icon name="alert-triangle" size={10}/> OVERFLOW</div>}
                                                             </td>
                                                             <td className="px-6 py-4 text-right bg-blue-50/20">
                                                                 <div className="text-lg font-bold text-blue-600">{item.qty}</div>
-                                                                <div className="text-[10px] text-gray-400 font-medium">Kelipatan {item.multiple}</div>
+                                                                <div className="text-[10px] text-blue-400">x{item.multiple}</div>
                                                             </td>
                                                         </tr>
-                                                    );
+                                                    )
                                                 })}
+                                                {currentTableData.length === 0 && (
+                                                    <tr><td colSpan="6" className="p-8 text-center text-gray-400">Tidak ada data.</td></tr>
+                                                )}
                                             </tbody>
                                         </table>
+                                    </div>
+                                    
+                                    {/* PAGINATION CONTROLS */}
+                                    <div className="bg-gray-50 px-6 py-4 border-t flex justify-between items-center">
+                                        <span className="text-sm text-gray-600">
+                                            Halaman <span className="font-bold">{currentPage}</span> dari {totalPages} 
+                                            <span className="text-gray-400 ml-2">({filteredSuggestions.length} items)</span>
+                                        </span>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                disabled={currentPage === 1}
+                                                className="px-4 py-2 border rounded bg-white hover:bg-gray-100 disabled:opacity-50 text-sm font-medium flex items-center gap-1"
+                                            >
+                                                <Icon name="chevron-left" size={16}/> Prev
+                                            </button>
+                                            <button 
+                                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                disabled={currentPage === totalPages}
+                                                className="px-4 py-2 border rounded bg-white hover:bg-gray-100 disabled:opacity-50 text-sm font-medium flex items-center gap-1"
+                                            >
+                                                Next <Icon name="chevron-right" size={16}/>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
