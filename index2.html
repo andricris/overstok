@@ -580,7 +580,7 @@
             };
 
             return (
-                <div className="min-h-screen pb-12 relative">
+                <div className="min-h-screen pb-12 relative flex flex-col">
                     {isProcessing && <LoadingOverlay />}
                     <Toast message={notification.message} type={notification.type} onClose={() => setNotification({message: '', type: ''})} />
 
@@ -589,13 +589,16 @@
                             <div className="flex justify-between items-center h-16">
                                 <div className="flex items-center gap-3">
                                     <div className="bg-blue-600 p-2 rounded-lg text-white"><Icon name="box" size={24} /></div>
-                                    <div><h1 className="text-xl font-bold text-gray-900">SCM Optimizer</h1><p className="text-xs text-gray-500">Dropping Allocation System</p></div>
+                                    <div>
+                                        <h1 className="text-xl font-bold text-gray-900 leading-tight">SCM Optimizer</h1>
+                                        <p className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold">Allocations System | by h3store</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow">
                         <div className="mb-8 flex justify-center gap-4">
                             {[1, 2, 3].map(s => (
                                 <div key={s} className={`w-3 h-3 rounded-full ${step >= s ? 'bg-blue-600' : 'bg-gray-300'}`}></div>
@@ -852,6 +855,19 @@
                                 </div>
                             </div>
                         )}
+                    </div>
+                    
+                    {/* FOOTER AUTHOR */}
+                    <div className="mt-auto border-t border-gray-100 bg-white/50 backdrop-blur-sm py-4">
+                        <div className="max-w-7xl mx-auto px-8 flex justify-between items-center text-[10px] text-gray-400 font-medium uppercase tracking-widest">
+                            <div className="flex items-center gap-2">
+                                <div className="w-1 h-1 rounded-full bg-blue-400"></div>
+                                © 2024 SCM Dropping Optimizer
+                            </div>
+                            <div className="flex items-center gap-2">
+                                Developed with <Icon name="heart" size={10} className="text-red-400 fill-red-400" /> by <span className="text-gray-600 font-bold">h3store</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             );
