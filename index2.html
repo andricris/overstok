@@ -73,12 +73,10 @@
             'CABANG JAUH':   ['JABODUNGTABEK', 'CABANG JAUH', 'JAWA TENGAH', 'JAWA TIMUR', 'SUMATERA']
         };
 
-        // --- OPTIMIZED ICON COMPONENT ---
         const Icon = ({ name, size = 18, className = "" }) => {
             return <i data-lucide={name} width={size} height={size} className={className}></i>;
         };
 
-        // --- HELPERS ---
         const getColLetter = (colIndex) => {
             let temp, letter = '';
             while (colIndex >= 0) {
@@ -122,10 +120,10 @@
             if (!val) return 0;
             const strVal = String(val).trim();
             if (strVal === '-' || strVal === '') return 0;
-            return Math.floor(parseFloat(strVal.replace(',', '.'))) || 0;
+            const parsed = parseFloat(strVal.replace(',', '.'));
+            return isNaN(parsed) ? 0 : Math.floor(parsed);
         };
 
-        // --- COMPONENTS ---
         const Toast = ({ message, type, onClose }) => {
             if (!message) return null;
             const bgClass = type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200';
@@ -147,7 +145,6 @@
             </div>
         );
 
-        // --- MAIN APP ---
         const App = () => {
             const [step, setStep] = React.useState(1);
             const [workbook, setWorkbook] = React.useState(null);
@@ -159,7 +156,6 @@
             const [isProcessing, setIsProcessing] = React.useState(false);
             const [allocationsMap, setAllocationsMap] = React.useState({}); 
 
-            // Pagination State
             const [currentPage, setCurrentPage] = React.useState(1);
             const [itemsPerPage, setItemsPerPage] = React.useState(50);
 
@@ -217,11 +213,14 @@
                 setTimeout(() => {
                     try {
                         const ws = workbook.Sheets[sheetName];
-                        const range = XLSX.utils.decode_range(ws['!ref']);
+                        let range = XLSX.utils.decode_range(ws['!ref']);
                         const idxStock = getColIndex(calcConfig.stockCol.toUpperCase());
                         const idxSales = getColIndex(calcConfig.salesCol.toUpperCase());
                         const idxBuffer = getColIndex(calcConfig.bufferCol.toUpperCase());
                         const idxOver = getColIndex(colMapping.overStock.toUpperCase());
+
+                        const headerCellAddress = XLSX.utils.encode_cell({r: headerRowIndex, c: idxOver});
+                        ws[headerCellAddress] = { t: 's', v: 'OVER' };
 
                         let countUpdated = 0;
                         for (let R = headerRowIndex + 1; R <= range.e.r; ++R) {
@@ -241,10 +240,18 @@
                             countUpdated++;
                         }
                         
+                        if (range.e.c < idxOver) {
+                            range.e.c = idxOver;
+                            ws['!ref'] = XLSX.utils.encode_range(range);
+                        }
+
+                        setWorkbook({...workbook});
+                        
                         const newData = XLSX.utils.sheet_to_json(ws, { header: 1, range: 0, defval: "" });
                         setPreviewData(newData.slice(0, 15));
-                        showNotify(`Updated ${countUpdated} rows!`, "success");
+                        showNotify(`Berhasil update ${countUpdated} baris & header "OVER"!`, "success");
                     } catch (err) {
+                        console.error(err);
                         showNotify("Error: " + err.message, "error");
                     } finally {
                         setIsProcessing(false);
@@ -259,6 +266,8 @@
                         const ws = workbook.Sheets[sheetName];
                         const rawData = XLSX.utils.sheet_to_json(ws, { header: 1, range: headerRowIndex + 1, defval: 0 });
 
+                        if (rawData.length === 0) throw new Error("Tidak ada data di bawah baris header.");
+
                         const idx = {
                             branch: getColIndex(colMapping.branch.toUpperCase()),
                             code: getColIndex(colMapping.productCode.toUpperCase()),
@@ -268,13 +277,9 @@
                             multiple: getColIndex(colMapping.multiple.toUpperCase()),
                         };
 
-                        let hasOver = false;
-                        for(let i=0; i<Math.min(rawData.length, 1000); i++) {
-                            if (parseSmartNumber(rawData[i][idx.over]) > 0) { hasOver = true; break; }
-                        }
+                        const hasOver = rawData.some(r => parseSmartNumber(r[idx.over]) > 0);
                         if (!hasOver) {
-                            const fullCheck = rawData.some(r => parseSmartNumber(r[idx.over]) > 0);
-                            if(!fullCheck) throw new Error("Data Overstock (Kolom AZ) Kosong/Nol semua.");
+                            throw new Error("Data Overstock (Kolom AZ) Kosong/Nol semua. Harap klik 'Hitung Update AZ' terlebih dahulu.");
                         }
 
                         const productGroups = {};
@@ -284,7 +289,8 @@
                             if (!row || row.length <= idx.code) continue;
 
                             const pCode = String(row[idx.code]).trim();
-                            if (!pCode) continue;
+                            if (!pCode || pCode === "0") continue;
+
                             const branchRaw = String(row[idx.branch] || "Unknown").trim().toUpperCase();
                             
                             let multipleVal = parseSmartNumber(row[idx.multiple]);
@@ -398,7 +404,7 @@
                                                 toRayon: dest.rayon,
                                                 qty: validTransfer,
                                                 priorityRank: source.tempScore,
-                                                sourceStockBefore: source.qty,
+                                                sourceInitialOver: source.initialOver,
                                                 initialNeed: dest.initialNeed,
                                                 availableOptions: potentialDestinations,
                                             });
@@ -418,33 +424,66 @@
 
                         setAllocationsMap(tempAllocMap);
                         if (newSuggestions.length === 0) {
-                            showNotify("Tidak ada saran dropping", "error");
+                            showNotify("Tidak ditemukan kecocokan stok (Need vs Over) untuk dropping.", "error");
                         } else {
                             setSuggestions(newSuggestions);
                             setStep(3);
-                            setCurrentPage(1); // Reset page
-                            showNotify(`Selesai! ${newSuggestions.length} saran.`, "success");
+                            setCurrentPage(1); 
+                            showNotify(`Analisa selesai! Ditemukan ${newSuggestions.length} rekomendasi.`, "success");
                         }
                     } catch (err) {
-                        showNotify("Error Analisa: " + err.message, "error");
+                        showNotify("Gagal Analisa: " + err.message, "error");
                     } finally {
                         setIsProcessing(false);
                     }
                 }, 100); 
             };
 
-            const handleDestinationChange = (id, newBranch) => {
+            // FUNGSI BARU: Update Qty Manual
+            const handleQtyChange = (id, newQty) => {
+                const qtyValue = parseInt(newQty) || 0;
                 setSuggestions(prev => {
                     const nextState = prev.map(item => {
                         if (item.id !== id) return item;
-                        const targetOption = item.availableOptions.find(o => o.branch === newBranch);
-                        if (!targetOption) return item;
+                        return { ...item, qty: qtyValue };
+                    });
 
-                        const newPriority = getPriorityScore(item.fromRayon, targetOption.rayon);
-                        const maxPossible = Math.min(item.sourceStockBefore, 9999);
-                        let newQty = Math.floor(maxPossible / item.multiple) * item.multiple;
-                        if (newQty <= 0) newQty = item.multiple;
+                    // Update Peta Alokasi untuk indikator Overflow
+                    const newMap = {};
+                    nextState.forEach(s => {
+                        const key = `${s.productCode}_${s.to}`;
+                        if (!newMap[key]) newMap[key] = { total: 0, need: s.initialNeed };
+                        newMap[key].total += s.qty;
+                    });
+                    setAllocationsMap(newMap);
+                    return nextState;
+                });
+            };
 
+            const handleDestinationChange = (id, newBranch) => {
+                setSuggestions(prev => {
+                    const currentItem = prev.find(item => item.id === id);
+                    if (!currentItem) return prev;
+
+                    const targetOption = currentItem.availableOptions.find(o => o.branch === newBranch);
+                    if (!targetOption) return prev;
+
+                    const usedByOthers = prev
+                        .filter(item => item.id !== id && item.productCode === currentItem.productCode && item.from === currentItem.from)
+                        .reduce((sum, item) => sum + item.qty, 0);
+
+                    const availableSourceStock = currentItem.sourceInitialOver - usedByOthers;
+                    const newPriority = getPriorityScore(currentItem.fromRayon, targetOption.rayon);
+                    
+                    let maxTransfer = Math.min(availableSourceStock, targetOption.need);
+                    let newQty = Math.floor(maxTransfer / currentItem.multiple) * currentItem.multiple;
+                    
+                    if (newQty <= 0 && targetOption.need > 0 && availableSourceStock >= currentItem.multiple) {
+                        newQty = currentItem.multiple;
+                    }
+
+                    const nextState = prev.map(item => {
+                        if (item.id !== id) return item;
                         return { 
                             ...item, to: newBranch, toRayon: targetOption.rayon, 
                             qty: newQty, priorityRank: newPriority, initialNeed: targetOption.need 
@@ -464,18 +503,22 @@
 
             const downloadCSV = () => {
                 if (suggestions.length === 0) return;
-                const headers = ["Kode Produk", "Deskripsi", "Prioritas", "Dari Cabang", "Rayon Asal", "Overstok Awal", "Ke Cabang", "Rayon Tujuan", "Kelipatan", "Qty Transfer"];
+                const headers = ["Kode Produk", "Deskripsi", "Prioritas", "Dari Cabang", "Rayon Asal", "Overstok Sumber", "Ke Cabang", "Rayon Tujuan", "Kelipatan", "Qty Transfer"];
                 const rows = suggestions.map(s => [
                     s.productCode, `"${s.productDesc || ''}"`, `PRIORITAS ${s.priorityRank}`,
-                    s.from, s.fromRayon, s.sourceStockBefore,
+                    s.from, s.fromRayon, s.sourceInitialOver,
                     s.to, s.toRayon, s.multiple, s.qty
                 ]);
-                const csvContent = "data:text/csv;charset=utf-8," + headers.join(";") + "\n" + rows.map(e => e.join(";")).join("\n");
+                const csvContent = "\ufeff" + headers.join(";") + "\n" + rows.map(e => e.join(";")).join("\n");
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
                 const link = document.createElement("a");
-                link.href = encodeURI(csvContent);
-                link.download = "rekomendasi_dropping_final.csv";
+                link.setAttribute("href", url);
+                link.setAttribute("download", "rekomendasi_dropping.csv");
+                link.style.visibility = 'hidden';
                 document.body.appendChild(link);
                 link.click();
+                document.body.removeChild(link);
             };
 
             const filteredSuggestions = React.useMemo(() => {
@@ -498,10 +541,9 @@
 
             const handleFilterChange = (col, val) => {
                 setColumnFilters(prev => ({...prev, [col]: val}));
-                setCurrentPage(1); // Reset page on filter
+                setCurrentPage(1); 
             };
 
-            // PAGINATION LOGIC
             const totalPages = Math.ceil(filteredSuggestions.length / itemsPerPage);
             const currentTableData = filteredSuggestions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
@@ -511,7 +553,6 @@
                 return `bg-${c}-100 text-${c}-700 border-${c}-200`;
             };
 
-            // Helper untuk style kolom header di Step 2 (Preview)
             const getHeaderStyle = (letter) => {
                 if (letter === colMapping.branch) return 'bg-red-100 text-red-700 border-red-200';
                 if (letter === colMapping.productCode) return 'bg-blue-100 text-blue-700 border-blue-200';
@@ -522,7 +563,6 @@
                 return 'bg-gray-50 text-gray-400';
             };
 
-            // Helper untuk style cell body di Step 2 (Preview)
             const getCellStyle = (letter) => {
                 if (letter === colMapping.branch) return 'bg-red-50/30 text-red-900 font-medium';
                 if (letter === colMapping.productCode) return 'bg-blue-50/30 text-blue-900 font-medium';
@@ -640,13 +680,13 @@
                                         </h3>
                                         <div className="text-xs text-amber-900/80 mt-1 mb-3">
                                             <p className="font-semibold">Rumus: Over = Stock - ((2 × Sales) + Buffer)</p>
-                                            <p className="text-[10px] text-amber-700 mt-0.5 opacity-80">*Jika hasil negatif, maka overstock dianggap 0.</p>
+                                            <p className="text-[10px] text-amber-700 mt-0.5 opacity-80">*Otomatis menamai Header <strong>"OVER"</strong> di kolom AZ baris ke-{headerRowIndex+1}.</p>
                                         </div>
                                         <div className="flex gap-4">
                                             {Object.entries(calcConfig).map(([k,v])=>(<div key={k} className="flex items-center gap-2"><span className="text-xs font-bold text-amber-600 uppercase">{k.replace('Col','')}</span><input value={v} onChange={e=>setCalcConfig({...calcConfig,[k]:e.target.value})} className="w-10 p-1 text-center font-mono border rounded"/></div>))}
                                         </div>
                                     </div>
-                                    <button onClick={handleCalculateOverstock} className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-bold shadow-md">Hitung Update AZ</button>
+                                    <button onClick={handleCalculateOverstock} className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg font-bold shadow-md transition-all active:scale-95">Hitung Update AZ</button>
                                 </div>
                             </div>
                         )}
@@ -657,8 +697,8 @@
                                     <div><h3 className="font-bold text-gray-800">Hasil Analisa</h3><p className="text-sm text-gray-500">Total: <strong className="text-blue-600">{suggestions.length}</strong> saran.</p></div>
                                     <div className="flex gap-2">
                                         <input placeholder="Cari..." value={searchTerm} onChange={e=>{setSearchTerm(e.target.value); setCurrentPage(1);}} className="p-2 border rounded w-64"/>
-                                        <button onClick={downloadCSV} className="bg-emerald-600 text-white px-4 py-2 rounded font-bold flex items-center gap-2"><Icon name="download"/> CSV</button>
-                                        <button onClick={()=>{setStep(2);setSuggestions([])}} className="bg-gray-200 px-4 py-2 rounded font-bold">Ulang</button>
+                                        <button onClick={downloadCSV} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded font-bold flex items-center gap-2 transition-all"><Icon name="download"/> Simpan CSV</button>
+                                        <button onClick={()=>{setStep(2);setSuggestions([])}} className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded font-bold transition-all">Ulang</button>
                                     </div>
                                 </div>
 
@@ -682,7 +722,7 @@
                                                     <th className="px-6 py-4 bg-rose-50/50 font-bold border-r border-rose-100 min-w-[250px]">Tujuan
                                                         <input className="w-full mt-1 p-1 border rounded font-normal bg-white" placeholder="Cari..." value={columnFilters.destination} onChange={e=>handleFilterChange('destination',e.target.value)}/>
                                                     </th>
-                                                    <th className="px-6 py-4 text-right bg-blue-50/50 font-bold w-[100px]">Qty
+                                                    <th className="px-6 py-4 text-right bg-blue-50/50 font-bold w-[120px]">Qty Drop
                                                         <input className="w-full mt-1 p-1 border rounded font-normal text-right bg-white" placeholder="..." value={columnFilters.qty} onChange={e=>handleFilterChange('qty',e.target.value)}/>
                                                     </th>
                                                 </tr>
@@ -705,7 +745,7 @@
                                                             <td className="px-6 py-4 bg-emerald-50/30 border-l border-emerald-100 relative group">
                                                                 <div className="font-bold text-gray-800">{item.from}</div>
                                                                 <div className="text-[10px] text-gray-500">{item.fromRayon}</div>
-                                                                <div className="text-[10px] text-emerald-600 font-medium">Over Awal: {item.sourceStockBefore}</div>
+                                                                <div className="text-[10px] text-emerald-600 font-medium">Over Awal: {item.sourceInitialOver}</div>
                                                             </td>
                                                             <td className="text-center text-gray-300"><Icon name="arrow-right" size={16}/></td>
                                                             <td className="px-6 py-4 bg-rose-50/30 border-r border-rose-100 relative">
@@ -722,21 +762,31 @@
                                                                 </div>
                                                                 {isOver && <div className="text-[10px] text-red-600 font-bold flex items-center gap-1 animate-pulse"><Icon name="alert-triangle" size={10}/> OVERFLOW</div>}
                                                             </td>
+                                                            {/* KOLOM QTY: SEKARANG BISA DIKETIK MANUAL */}
                                                             <td className="px-6 py-4 text-right bg-blue-50/20">
-                                                                <div className="text-lg font-bold text-blue-600">{item.qty}</div>
-                                                                <div className="text-[10px] text-blue-400">x{item.multiple}</div>
+                                                                <input 
+                                                                    type="number" 
+                                                                    className={`w-20 p-1 border rounded text-right font-bold focus:ring-1 focus:ring-blue-500 outline-none ${
+                                                                        item.qty > item.sourceInitialOver ? 'bg-red-50 border-red-300 text-red-600' : 'bg-white text-blue-600'
+                                                                    }`}
+                                                                    value={item.qty}
+                                                                    onChange={(e) => handleQtyChange(item.id, e.target.value)}
+                                                                />
+                                                                <div className="text-[9px] text-blue-400 mt-1">x{item.multiple} (Kelipatan)</div>
+                                                                {item.qty > item.sourceInitialOver && (
+                                                                    <div className="text-[8px] text-red-500 font-bold mt-1">Melebihi Stock!</div>
+                                                                )}
                                                             </td>
                                                         </tr>
                                                     )
                                                 })}
                                                 {currentTableData.length === 0 && (
-                                                    <tr><td colSpan="6" className="p-8 text-center text-gray-400">Tidak ada data.</td></tr>
+                                                    <tr><td colSpan="6" className="p-8 text-center text-gray-400">Tidak ada data dropping yang sesuai prioritas.</td></tr>
                                                 )}
                                             </tbody>
                                         </table>
                                     </div>
                                     
-                                    {/* PAGINATION CONTROLS */}
                                     <div className="bg-gray-50 px-6 py-4 border-t flex justify-between items-center">
                                         <span className="text-sm text-gray-600">
                                             Halaman <span className="font-bold">{currentPage}</span> dari {totalPages} 
@@ -746,14 +796,14 @@
                                             <button 
                                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                                 disabled={currentPage === 1}
-                                                className="px-4 py-2 border rounded bg-white hover:bg-gray-100 disabled:opacity-50 text-sm font-medium flex items-center gap-1"
+                                                className="px-4 py-2 border rounded bg-white hover:bg-gray-100 disabled:opacity-50 text-sm font-medium flex items-center gap-1 transition-all"
                                             >
                                                 <Icon name="chevron-left" size={16}/> Prev
                                             </button>
                                             <button 
                                                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                                 disabled={currentPage === totalPages}
-                                                className="px-4 py-2 border rounded bg-white hover:bg-gray-100 disabled:opacity-50 text-sm font-medium flex items-center gap-1"
+                                                className="px-4 py-2 border rounded bg-white hover:bg-gray-100 disabled:opacity-50 text-sm font-medium flex items-center gap-1 transition-all"
                                             >
                                                 Next <Icon name="chevron-right" size={16}/>
                                             </button>
