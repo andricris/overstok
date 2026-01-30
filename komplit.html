@@ -186,7 +186,7 @@
             const [calcConfig, setCalcConfig] = React.useState({
                 stockCol: 'AA', // Gross Stock
                 salesCol: 'V',  // Sales Qty
-                bufferCol: 'AL' // Buffer/PO Pending
+                bufferCol: 'AN' // Buffer/PO Pending
             });
 
             const handleFileUpload = (e) => {
@@ -238,7 +238,7 @@
                         const valSales = cellSales ? parseSmartNumber(cellSales.v) : 0;
                         const valBuffer = cellBuffer ? parseSmartNumber(cellBuffer.v) : 0;
 
-                        // Rumus: Over = AA - ((2 * V) + AL)
+                        // Rumus: Over = AA - ((2 * V) + AN)
                         // Jika hasil <= 0, maka 0
                         const safetyStock = (2 * valSales) + valBuffer;
                         let calcOver = valStock - safetyStock;
@@ -634,7 +634,7 @@
                                                     <input type="text" value={calcConfig.salesCol} onChange={e=>setCalcConfig({...calcConfig, salesCol:e.target.value})} className="w-24 p-2 border rounded font-mono uppercase text-center"/>
                                                 </div>
                                                 <div>
-                                                    <label className="text-xs font-bold text-gray-500 mb-1 block">BUFFER (AL)</label>
+                                                    <label className="text-xs font-bold text-gray-500 mb-1 block">BUFFER (AN)</label>
                                                     <input type="text" value={calcConfig.bufferCol} onChange={e=>setCalcConfig({...calcConfig, bufferCol:e.target.value})} className="w-24 p-2 border rounded font-mono uppercase text-center"/>
                                                 </div>
                                             </div>

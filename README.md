@@ -53,7 +53,7 @@ Default mapping pada versi utama `index.html`:
 ### 4) Konfigurasi Kalkulator Overstock (Default)
 - **Stock**: `AA`
 - **Sales Qty**: `V`
-- **Buffer / PO Pending**: `AL`
+- **Buffer / PO Pending**: `AN`
 
 > Semua mapping ini dapat diubah melalui UI agar sesuai dengan layout Excel yang berbeda.
 
